@@ -34,6 +34,8 @@ public:
     virtual bool bounding_box(double time0, double time1, aabb& output_box) const = 0;
 };
 
+
+// Constructing a translated class which inherits from hittable.
 class translate : public hittable {
 public:
     shared_ptr<hittable> ptr;
@@ -47,43 +49,46 @@ public:
 };
 
 bool translate::hit(const ray& r, double t_min, double t_max, hit_record& rec) const {
+    // New ray is offset by the translation vector
     ray moved_r(r.origin() - offset, r.direction(), r.time());
     if (!ptr->hit(moved_r, t_min, t_max, rec))
         return false;
 
+    // If hit, we need to shift the point back 
     rec.p += offset;
     rec.set_face_normal(moved_r, rec.normal);
-
     return true;
 }
 
 bool translate::bounding_box(double time0, double time1, aabb& output_box) const {
     if (!ptr->bounding_box(time0, time1, output_box))
         return false;
-    output_box = aabb(output_box.min() + offset,
+    output_box = aabb(
+        output_box.min() + offset,
         output_box.max() + offset);
-    return true;
 }
+
+// Now we construct rotated class
 class rotate_y : public hittable {
-public:
-    rotate_y(shared_ptr<hittable> p, double angle);
-
-    virtual bool hit(
-        const ray& r, double t_min, double t_max, hit_record& rec) const override;
-
-    virtual bool bounding_box(double time0, double time1, aabb& output_box) const override {
-        output_box = bbox;
-        return hasbox;
-    }
-
 public:
     shared_ptr<hittable> ptr;
     double sin_theta;
     double cos_theta;
     bool hasbox;
     aabb bbox;
+public:
+    rotate_y(shared_ptr<hittable> p, double angle);
+
+    virtual bool hit(
+        const ray& r, double t_min, double t_max, hit_record& rec) const override;
+    
+    virtual bool bounding_box(double time0, double time1, aabb& output_box) const override {
+        output_box = bbox;
+        return hasbox;
+    }
 };
 
+// Constructor for rotation instance. Need a way to initialize bbox, sin_theta, cos_theta
 rotate_y::rotate_y(shared_ptr<hittable> p, double angle) : ptr(p) {
     auto radians = degrees_to_radians(angle);
     sin_theta = sin(radians);
@@ -93,6 +98,7 @@ rotate_y::rotate_y(shared_ptr<hittable> p, double angle) : ptr(p) {
     point3 min(infinity, infinity, infinity);
     point3 max(-infinity, -infinity, -infinity);
 
+    // Need to figure out this logic
     for (int i = 0; i < 2; i++) {
         for (int j = 0; j < 2; j++) {
             for (int k = 0; k < 2; k++) {
@@ -100,9 +106,11 @@ rotate_y::rotate_y(shared_ptr<hittable> p, double angle) : ptr(p) {
                 auto y = j * bbox.max().y() + (1 - j) * bbox.min().y();
                 auto z = k * bbox.max().z() + (1 - k) * bbox.min().z();
 
-                auto newx = cos_theta * x + sin_theta * z;
+                // Since rotating about y, only x and z coordinates changes by the angle radian
+                auto newx =  cos_theta * x + sin_theta * z;
                 auto newz = -sin_theta * x + cos_theta * z;
 
+                // Need to figure this out
                 vec3 tester(newx, y, newz);
 
                 for (int c = 0; c < 3; c++) {
@@ -120,12 +128,14 @@ bool rotate_y::hit(const ray& r, double t_min, double t_max, hit_record& rec) co
     auto origin = r.origin();
     auto direction = r.direction();
 
+    // origin and direction of rays are rotated
     origin[0] = cos_theta * r.origin()[0] - sin_theta * r.origin()[2];
     origin[2] = sin_theta * r.origin()[0] + cos_theta * r.origin()[2];
 
     direction[0] = cos_theta * r.direction()[0] - sin_theta * r.direction()[2];
     direction[2] = sin_theta * r.direction()[0] + cos_theta * r.direction()[2];
 
+    // Create new rotated ray with new rotated origin and direction
     ray rotated_r(origin, direction, r.time());
 
     if (!ptr->hit(rotated_r, t_min, t_max, rec))
@@ -134,7 +144,8 @@ bool rotate_y::hit(const ray& r, double t_min, double t_max, hit_record& rec) co
     auto p = rec.p;
     auto normal = rec.normal;
 
-    p[0] = cos_theta * rec.p[0] + sin_theta * rec.p[2];
+    // Why do we have to rotate the points in the hit record???
+    p[0] =  cos_theta * rec.p[0] + sin_theta * rec.p[2];
     p[2] = -sin_theta * rec.p[0] + cos_theta * rec.p[2];
 
     normal[0] = cos_theta * rec.normal[0] + sin_theta * rec.normal[2];
@@ -142,8 +153,5 @@ bool rotate_y::hit(const ray& r, double t_min, double t_max, hit_record& rec) co
 
     rec.p = p;
     rec.set_face_normal(rotated_r, normal);
-
-    return true;
 }
-
 #endif
